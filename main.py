@@ -92,10 +92,8 @@ def main():
 
     # The Future - Malware Detection Trend Projection
     df1['detection_time'] = pd.to_datetime(df1['detection_time'])
-    df1['date_only'] = pd.to_datetime(df1['detection_time'].dt.date)  
-
+    df1['date_only'] = pd.to_datetime(df1['detection_time'].dt.date)
     trend_data = df1.groupby('date_only').size().reset_index(name='count')
-
     trend_fig = px.scatter(
         trend_data,
         x='date_only',
@@ -112,11 +110,49 @@ def main():
         height=600
     )
 
+    # The Future - Network Traffic Anomaly Forecast
+    df3['sample_time'] = pd.to_datetime(df3['sample_time'])
+    df3['total_bytes'] = df3['inbound_bytes'] + df3['outbound_bytes']
+    daily_traffic = df3.groupby(df3['sample_time'].dt.date)['total_bytes'].sum().reset_index()
+    daily_traffic['sample_time'] = pd.to_datetime(daily_traffic['sample_time'])
+    daily_traffic['rolling_mean'] = daily_traffic['total_bytes'].rolling(window=7, min_periods=1).mean()
+    daily_traffic['rolling_std'] = daily_traffic['total_bytes'].rolling(window=7, min_periods=1).std().fillna(0)
+    daily_traffic['anomaly'] = daily_traffic['total_bytes'] > (daily_traffic['rolling_mean'] + 2 * daily_traffic['rolling_std'])
+
+    traffic_fig = px.line(daily_traffic, x='sample_time', y='total_bytes', title='Daily Network Traffic with Anomaly Detection')
+    traffic_fig.add_scatter(
+        x=daily_traffic.loc[daily_traffic['anomaly'], 'sample_time'],
+        y=daily_traffic.loc[daily_traffic['anomaly'], 'total_bytes'],
+        mode='markers',
+        marker=dict(color='red', size=10),
+        name='Anomaly'
+    )
+    traffic_fig.update_layout(xaxis_title='Date', yaxis_title='Total Bytes Transferred')
+
+    # The Future - Protocol Usage Forecast
+    df3['protocol'] = df3['protocol'].astype(str)
+    df3['sample_day'] = df3['sample_time'].dt.date
+    proto_trend = df3.groupby(['sample_day', 'protocol']).size().reset_index(name='count')
+    proto_trend['sample_day'] = pd.to_datetime(proto_trend['sample_day'])
+    proto_fig = px.line(
+        proto_trend,
+        x='sample_day',
+        y='count',
+        color='protocol',
+        title='Protocol Usage Over Time',
+        labels={'sample_day': 'Date', 'count': 'Count', 'protocol': 'Protocol'}
+    )
+    proto_fig.update_layout(xaxis_title='Date', yaxis_title='Number of Connections')
+
     F3 = html.Div([
         html.H2("Time-to-Resolution Analysis"),
         dcc.Graph(figure=response_fig),
         html.H2("Malware Detection Trend Projection"),
-        dcc.Graph(figure=trend_fig)
+        dcc.Graph(figure=trend_fig),
+        html.H2("Network Traffic Anomaly Forecast"),
+        dcc.Graph(figure=traffic_fig),
+        html.H2("Protocol Usage Forecast"),
+        dcc.Graph(figure=proto_fig)
     ])
 
     app = Dash()
